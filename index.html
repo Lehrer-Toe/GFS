@@ -2,62 +2,285 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Nhost ESM-Test – Komplettbeispiel</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WBS Bewertungssystem</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Nhost ESM-Test</h1>
-  <p>Dieser Code zeigt, wie man den <strong>NhostClient</strong> und weitere Pakete direkt als ESM-Bundles aus einem CDN (z. B. unpkg) im Browser einbindet, ohne ein eigenes Build-Tool verwenden zu müssen.</p>
+  <div class="loader-container" id="mainLoader">
+    <span class="loader"></span>
+  </div>
 
-  <script type="module">
-    /*
-     * Beispiel: Einbinden des ESM-Bundles von nhost-js (aktuelle Version)
-     * Genau so kann man weitere Nhost-Pakete als ESM über unpkg importieren.
-     */
-    import { NhostClient } from "https://unpkg.com/@nhost/nhost-js@latest/dist/index.esm.js";
+  <div id="loginSection">
+    <header>
+      <h1>WBS Bewertungssystem</h1>
+      <div class="version">v1.2</div>
+    </header>
+    
+    <div class="container animate-fade-in">
+      <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
+      
+      <div class="teacher-grid" id="teacherGrid">
+        <!-- Teacher cards will be generated here -->
+      </div>
+      
+      <div class="modal" id="passwordModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Anmeldung</h3>
+            <button class="modal-close" id="closePasswordModal">&times;</button>
+          </div>
+          <p id="loginPrompt">Bitte geben Sie Ihr Passwort ein:</p>
+          <input type="password" id="passwordInput" placeholder="Passwort">
+          <div class="modal-footer">
+            <button class="btn-danger" id="cancelLogin">Abbrechen</button>
+            <button id="confirmLogin">Anmelden</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="appSection" style="display: none;">
+    <header>
+      <div class="teacher-info">
+        <div class="teacher-avatar" id="teacherAvatar">T</div>
+        <div class="teacher-name" id="teacherName">Töllner</div>
+      </div>
+      <h1>WBS Bewertungssystem</h1>
+      <button id="logoutBtn" class="logout-btn">Abmelden</button>
+    </header>
+    
+    <div class="container">
+      <div class="tabs">
+        <div class="tab active" data-tab="students">Schüler anlegen</div>
+        <div class="tab" data-tab="assessment">Bewertung</div>
+        <div class="tab" data-tab="overview">Übersicht</div>
+        <div class="tab" data-tab="settings">Einstellungen</div>
+      </div>
+      
+      <div class="tab-content active" id="students-tab">
+        <div class="main-layout">
+          <div class="sidebar">
+            <div class="section">
+              <h3>Prüfling anlegen</h3>
+              <div class="form-group">
+                <label for="newStudentName">Name des Prüflings</label>
+                <input type="text" id="newStudentName" placeholder="Vor- und Nachname">
+              </div>
+              <div class="form-group">
+                <label for="examDate">Prüfungsdatum</label>
+                <input type="date" id="examDate">
+              </div>
+              <button id="addStudentBtn">Prüfling hinzufügen</button>
+            </div>
+          </div>
+          
+          <div class="content-area">
+            <h2>Alle Prüflinge</h2>
+            <div class="table-container">
+              <table class="student-table" id="studentsTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Datum</th>
+                    <th>Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colspan="3">Keine Prüflinge vorhanden</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="assessment-tab">
+        <div class="main-layout">
+          <div class="sidebar">
+            <div class="section">
+              <h3>Prüfungstag auswählen</h3>
+              <div class="form-group">
+                <label for="assessmentDateSelect">Datum</label>
+                <select id="assessmentDateSelect">
+                  <option value="">Bitte wählen...</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h3>Prüflinge</h3>
+              <ul class="student-list" id="assessmentStudentList">
+                <li>Bitte wählen Sie ein Datum</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="content-area" id="assessmentContent">
+            <div class="welcome-card">
+              <h2>Willkommen bei der WBS Bewertungsapp</h2>
+              <p>Bitte wählen Sie einen Prüfungstag und Prüfling aus der Liste oder legen Sie einen neuen Prüfling an.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="overview-tab">
+        <h2>Übersicht aller Bewertungen</h2>
+        
+        <div class="selectors">
+          <div class="selector-group">
+            <label for="overviewYearSelect">Prüfungsjahr</label>
+            <select id="overviewYearSelect">
+              <option value="">Alle Jahre</option>
+            </select>
+          </div>
+          
+          <div class="selector-group">
+            <label for="overviewDateSelect">Prüfungstag</label>
+            <select id="overviewDateSelect">
+              <option value="">Alle Tage</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="table-container">
+          <table class="overview-table" id="overviewTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Datum</th>
+                <th>Präsentation</th>
+                <th>Inhalt</th>
+                <th>Sprache</th>
+                <th>Eindruck</th>
+                <th>Prüfung</th>
+                <th>Reflexion</th>
+                <th>Fachwissen</th>
+                <th>Dokumentation</th>
+                <th>Durchschnitt</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="12">Keine Prüflinge gefunden</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="settings-tab">
+        <h2>Einstellungen</h2>
+        
+        <div class="selectors">
+          <div class="selector-group">
+            <label for="settingsYearSelect">Prüfungsjahr</label>
+            <select id="settingsYearSelect">
+              <option value="">Alle Jahre</option>
+            </select>
+          </div>
+          
+          <div class="selector-group">
+            <label for="settingsDateSelect">Prüfungstag</label>
+            <select id="settingsDateSelect">
+              <option value="">Alle Tage</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h3>Ergebnisse exportieren</h3>
+          <p>Exportieren Sie die Bewertungen für den ausgewählten Zeitraum.</p>
+          <button id="exportDataBtn">Ergebnisse herunterladen</button>
+          <div style="margin-top: 10px;">
+            <label>
+              <input type="radio" name="exportFormat" id="exportTXT" checked> Als TXT exportieren
+            </label>
+          </div>
+          <div>
+            <label>
+              <input type="radio" name="exportFormat" id="exportJSON"> Als JSON exportieren
+            </label>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h3>Daten löschen</h3>
+          <p>Achtung: Diese Aktion kann nicht rückgängig gemacht werden.</p>
+          <div class="form-group">
+            <label for="deleteVerificationCode">Zur Bestätigung geben Sie Ihren Lehrerkürzel ein</label>
+            <input type="text" id="deleteVerificationCode" placeholder="z.B. KRE, RIF, TOE">
+          </div>
+          <button id="deleteDataBtn" class="btn-danger">Alle Daten löschen</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal" id="editStudentModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Prüfling bearbeiten</h3>
+          <button class="modal-close" id="closeEditStudentModal">&times;</button>
+        </div>
+        <div class="form-group">
+          <label for="editStudentName">Name des Prüflings</label>
+          <input type="text" id="editStudentName" placeholder="Vor- und Nachname">
+        </div>
+        <div class="form-group">
+          <label for="editExamDate">Prüfungsdatum</label>
+          <input type="date" id="editExamDate">
+        </div>
+        <div class="modal-footer">
+          <button class="btn-danger" id="deleteStudentBtn">Löschen</button>
+          <button id="saveStudentBtn">Speichern</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal" id="editGradeModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Note bearbeiten</h3>
+          <button class="modal-close" id="closeEditGradeModal">&times;</button>
+        </div>
+        <div id="editGradeContent">
+          <div class="form-group">
+            <label for="editFinalGrade">Endnote</label>
+            <input type="number" id="editFinalGrade" min="1" max="6" step="0.1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="saveGradeBtn">Speichern</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal" id="confirmDeleteModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Prüfling löschen</h3>
+          <button class="modal-close" id="closeConfirmDeleteModal">&times;</button>
+        </div>
+        <p>Sind Sie sicher, dass Sie diesen Prüfling und alle zugehörigen Bewertungen löschen möchten?</p>
+        <p id="deleteStudentName" style="font-weight: bold;"></p>
+        <div class="modal-footer">
+          <button id="cancelDeleteBtn">Abbrechen</button>
+          <button class="btn-danger" id="confirmDeleteBtn">Löschen</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    // Beispiel: Instanzieren des Nhost-Clients
-    const nhost = new NhostClient({
-      // Hier die eigenen Werte einsetzen:
-      subdomain: "YOUR_SUBDOMAIN_HIER",
-      region: "eu-central-1"
-    });
-
-    console.log("NhostClient erzeugt:", nhost);
-
-    // Beispiel-Aufruf, um z. B. eine GraphQL-Query abzusetzen:
-    // (Sinnvoll nur, wenn das Backend korrekt konfiguriert ist.)
-    async function testQuery() {
-      try {
-        const { data, error } = await nhost.graphql.request(`
-          query TestQuery {
-            __typename
-          }
-        `);
-        if (error) {
-          console.error("Fehler bei der GraphQL-Anfrage:", error);
-        } else {
-          console.log("TestQuery erfolgreich:", data);
-        }
-      } catch (e) {
-        console.error("Allg. Fehler:", e);
-      }
-    }
-
-    // Direkt mal ausprobieren:
-    testQuery();
-
-    /*
-     * Falls man weitere Nhost-Pakete braucht (z. B. hasura-auth-js, hasura-storage-js), 
-     * kann man diese nach dem gleichen Muster einbinden. 
-     * Beispielsweise:
-     *
-     * import { HasuraAuthClient } from "https://unpkg.com/@nhost/hasura-auth-js@latest/dist/index.esm.js";
-     *
-     * const authClient = new HasuraAuthClient({ url: "https://xxx.nhost.run/v1/auth" });
-     * console.log("HasuraAuthClient:", authClient);
-     *
-     */
-  </script>
+  <!-- Supabase library -->
+  <script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js"></script>
+  
+  <!-- Application JS -->
+  <script src="app.js"></script>
 </body>
 </html>
