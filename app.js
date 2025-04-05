@@ -222,28 +222,21 @@ async function initDatabase() {
   try {
     showLoader();
 
-    // Prüfen, ob NhostClient verfügbar ist
-    if (typeof NhostClient === 'undefined') {
-      console.error("NhostClient ist nicht definiert. Bitte Bibliothek prüfen.");
+    // Prüfen, ob nhost global verfügbar ist
+    if (typeof nhost === 'undefined') {
+      console.error("nhost ist nicht definiert. Bitte Bibliothek prüfen.");
       showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
       hideLoader();
       return false;
     }
     
-    // Korrekte Nhost Client Initialisierung
-    try {
-      nhostClient = new NhostClient({
-        subdomain: NHOST_SUBDOMAIN,
-        region: NHOST_REGION
-      });
-      
-      console.log("Nhost-Client erfolgreich initialisiert");
-    } catch (error) {
-      console.error("Fehler bei der Nhost-Client-Initialisierung:", error);
-      showNotification("Fehler bei der Initialisierung des Nhost-Clients. Bitte Seite neu laden.", "error");
-      hideLoader();
-      return false;
-    }
+    // Korrekte Nhost Client Initialisierung mit der UMD-Version
+    nhostClient = new nhost.NhostClient({
+      subdomain: NHOST_SUBDOMAIN,
+      region: NHOST_REGION
+    });
+    
+    console.log("Nhost-Client erfolgreich initialisiert");
     
     // Überprüfen, ob die Tabelle existiert, indem wir versuchen, Daten abzurufen
     try {
