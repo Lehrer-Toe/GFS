@@ -30,7 +30,6 @@ const defaultDate = today.getFullYear() + '-' +
 // Konstanten
 const NHOST_SUBDOMAIN = "meeeuwopykbtjzdlfmjg";
 const NHOST_REGION = "eu-central-1";
-const NHOST_GRAPHQL_URL = `https://${NHOST_SUBDOMAIN}.graphql.${NHOST_REGION}.nhost.run/v1`;
 const DEFAULT_TEACHERS = [
   { name: "Kretz", code: "KRE", password: "Luna" },
   { name: "Riffel", code: "RIF", password: "Luna" },
@@ -230,30 +229,33 @@ async function initDatabase() {
       return false;
     }
     
-    nhostClient = nhost.createClient({
+    // Korrekte Nhost Client Initialisierung
+    nhostClient = new nhost.NhostClient({
       subdomain: NHOST_SUBDOMAIN,
       region: NHOST_REGION
     });
     
     console.log("Nhost-Client erfolgreich initialisiert");
     
+    // Überprüfen, ob die Tabelle existiert, indem wir versuchen, Daten abzurufen
     try {
-      // Überprüfen, ob Tabelle existiert, und ggf. erstellen
-      const query = `
-        query {
-          __type(name: "wbs_data") {
-            name
+      const { data, error } = await nhostClient.graphql.request(`
+        query CheckTableExists {
+          wbs_data {
+            id
           }
         }
-      `;
+      `);
       
-      const response = await nhostClient.graphql.request(query);
-      if (!response.data.__type) {
-        await createTableManually();
+      if (error) {
+        console.error("Tabelle existiert möglicherweise nicht:", error);
+        showNotification("Datenbank-Struktur wird initialisiert...", "warning");
+      } else {
+        console.log("Tabelle existiert und kann abgefragt werden");
       }
     } catch (err) {
-      console.error("Fehler bei GraphQL-Aufruf:", err);
-      await createTableManually();
+      console.error("Fehler bei GraphQL-Abfrage:", err);
+      showNotification("Bitte stellen Sie sicher, dass die Datenbank-Tabellen existieren.", "error");
     }
     
     hideLoader();
@@ -261,54 +263,6 @@ async function initDatabase() {
   } catch (error) {
     console.error("Fehler bei der Datenbankinitialisierung:", error);
     hideLoader();
-    return false;
-  }
-}
-
-/**
- * Erstellt die Tabelle manuell, falls sie noch nicht existiert
- */
-async function createTableManually() {
-  try {
-    console.log("Versuche, die Tabelle manuell zu erstellen...");
-    
-    const createTableQuery = `
-      mutation {
-        __schema {
-          createTable(
-            input: {
-              name: "wbs_data",
-              columns: [
-                { name: "id", type: "serial", primaryKey: true },
-                { name: "teacher_code", type: "text", notNull: true, unique: true },
-                { name: "teacher_name", type: "text", notNull: true },
-                { name: "data", type: "jsonb", notNull: true, defaultValue: '{"students":[], "assessments":{}}' },
-                { name: "created_at", type: "timestamptz", defaultValue: "now()" },
-                { name: "updated_at", type: "timestamptz", defaultValue: "now()" }
-              ]
-            }
-          ) {
-            table {
-              name
-            }
-          }
-        }
-      }
-    `;
-    
-    try {
-      const response = await nhostClient.graphql.request(createTableQuery);
-      if (response.errors) {
-        console.error("Fehler beim Erstellen der Tabelle:", response.errors);
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error("Fehler beim Erstellen der Tabelle:", error);
-      return false;
-    }
-  } catch (error) {
-    console.error("Fehler in createTableManually:", error);
     return false;
   }
 }
@@ -366,17 +320,13 @@ async function loadTeacherData() {
   if (!currentUser) return false;
   
   try {
-    const query = `
-      query GetTeacherData($teacherCode: String!) {
-        wbs_data(where: {teacher_code: {_eq: $teacherCode}}) {
+    const { data, error } = await nhostClient.graphql.request(`
+      query GetTeacherData($code: String!) {
+        wbs_data(where: {teacher_code: {_eq: $code}}) {
           data
         }
       }
-    `;
-    
-    const variables = { teacherCode: currentUser.code };
-    
-    const { data, error } = await nhostClient.graphql.request(query, variables);
+    `, { code: currentUser.code });
     
     if (error) {
       console.error("Error loading teacher data:", error);
@@ -410,33 +360,27 @@ async function saveTeacherData() {
   if (!currentUser) return false;
   
   try {
-    const mutation = `
-      mutation UpsertTeacherData($teacherCode: String!, $teacherName: String!, $data: jsonb!, $updatedAt: timestamptz!) {
-        insert_wbs_data(
-          objects: {
-            teacher_code: $teacherCode,
-            teacher_name: $teacherName,
-            data: $data,
-            updated_at: $updatedAt
+    const { data, error } = await nhostClient.graphql.request(`
+      mutation UpsertTeacherData($code: String!, $name: String!, $data: jsonb!) {
+        insert_wbs_data_one(
+          object: {
+            teacher_code: $code, 
+            teacher_name: $name, 
+            data: $data
           },
           on_conflict: {
             constraint: wbs_data_teacher_code_key,
             update_columns: [teacher_name, data, updated_at]
           }
         ) {
-          affected_rows
+          id
         }
       }
-    `;
-    
-    const variables = {
-      teacherCode: currentUser.code,
-      teacherName: currentUser.name,
-      data: teacherData,
-      updatedAt: new Date().toISOString()
-    };
-    
-    const { data, error } = await nhostClient.graphql.request(mutation, variables);
+    `, { 
+      code: currentUser.code, 
+      name: currentUser.name, 
+      data: teacherData 
+    });
     
     if (error) {
       console.error("Error saving teacher data:", error);
@@ -591,7 +535,7 @@ function setupEventListeners() {
       confirmDeleteModal.style.display = "none";
     });
   }
-  if (confirmDeleteBtn) {
+if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener("click", deleteStudent);
   }
 }
