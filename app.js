@@ -222,15 +222,15 @@ async function initDatabase() {
   try {
     showLoader();
 
-    if (typeof nhost === 'undefined') {
-      console.error("Nhost ist nicht definiert. Bitte Bibliothek prüfen.");
+    if (typeof NhostClient === 'undefined') {
+      console.error("NhostClient ist nicht definiert. Bitte Bibliothek prüfen.");
       showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
       hideLoader();
       return false;
     }
     
     // Nhost Client initialisieren
-    nhostClient = nhost.createClient({
+    nhostClient = new NhostClient({
       subdomain: NHOST_SUBDOMAIN,
       region: NHOST_REGION
     });
@@ -239,15 +239,17 @@ async function initDatabase() {
     
     try {
       // Prüfen, ob die Tabelle existiert, indem wir versuchen eine Abfrage auszuführen
-      const { data, error } = await nhostClient.graphql.request(`
-        query CheckTableExists {
-          wbs_data_aggregate {
-            aggregate {
-              count
+      const { data, error } = await nhostClient.graphql.request({
+        query: `
+          query CheckTableExists {
+            wbs_data_aggregate {
+              aggregate {
+                count
+              }
             }
           }
-        }
-      `);
+        `
+      });
       
       if (error) {
         console.error("Fehler beim Überprüfen der Tabelle:", error);
@@ -321,18 +323,20 @@ async function loadTeacherData() {
   
   try {
     // GraphQL-Abfrage um die Daten des Lehrers zu laden
-    const { data, error } = await nhostClient.graphql.request(`
-      query GetTeacherData {
-        wbs_data(where: {teacher_code: {_eq: "${currentUser.code}"}}) {
-          id
-          teacher_code
-          teacher_name
-          data
-          created_at
-          updated_at
+    const { data, error } = await nhostClient.graphql.request({
+      query: `
+        query GetTeacherData {
+          wbs_data(where: {teacher_code: {_eq: "${currentUser.code}"}}) {
+            id
+            teacher_code
+            teacher_name
+            data
+            created_at
+            updated_at
+          }
         }
-      }
-    `);
+      `
+    });
     
     if (error) {
       console.error("Error loading teacher data:", error);
@@ -367,50 +371,66 @@ async function saveTeacherData() {
   
   try {
     // Prüfen, ob der Eintrag bereits existiert
-    const { data: existingData } = await nhostClient.graphql.request(`
-      query CheckTeacherExists {
-        wbs_data(where: {teacher_code: {_eq: "${currentUser.code}"}}) {
-          id
+    const { data: existingData } = await nhostClient.graphql.request({
+      query: `
+        query CheckTeacherExists {
+          wbs_data(where: {teacher_code: {_eq: "${currentUser.code}"}}) {
+            id
+          }
         }
-      }
-    `);
+      `
+    });
     
     let mutation;
+    let variables = {};
     
     // Je nachdem, ob der Eintrag existiert, UPDATE oder INSERT ausführen
     if (existingData && existingData.wbs_data && existingData.wbs_data.length > 0) {
       // Update bestehender Eintrag
       mutation = `
-        mutation UpdateTeacherData {
+        mutation UpdateTeacherData($teacherCode: String!, $data: jsonb!, $updatedAt: timestamptz!) {
           update_wbs_data(
-            where: {teacher_code: {_eq: "${currentUser.code}"}}, 
+            where: {teacher_code: {_eq: $teacherCode}}, 
             _set: {
-              data: ${JSON.stringify(JSON.stringify(teacherData))}, 
-              updated_at: "${new Date().toISOString()}"
+              data: $data, 
+              updated_at: $updatedAt
             }
           ) {
             affected_rows
           }
         }
       `;
+      variables = {
+        teacherCode: currentUser.code,
+        data: teacherData,
+        updatedAt: new Date().toISOString()
+      };
     } else {
       // Neuen Eintrag erstellen
       mutation = `
-        mutation CreateTeacherData {
+        mutation CreateTeacherData($teacherCode: String!, $teacherName: String!, $data: jsonb!) {
           insert_wbs_data_one(
             object: {
-              teacher_code: "${currentUser.code}", 
-              teacher_name: "${currentUser.name}", 
-              data: ${JSON.stringify(JSON.stringify(teacherData))}
+              teacher_code: $teacherCode, 
+              teacher_name: $teacherName, 
+              data: $data
             }
           ) {
             id
           }
         }
       `;
+      variables = {
+        teacherCode: currentUser.code,
+        teacherName: currentUser.name,
+        data: teacherData
+      };
     }
     
-    const { error } = await nhostClient.graphql.request(mutation);
+    const { error } = await nhostClient.graphql.request({
+      query: mutation,
+      variables: variables
+    });
     
     if (error) {
       console.error("Error saving teacher data:", error);
