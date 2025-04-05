@@ -1,4 +1,51 @@
-// Die neuen Bewertungskategorien
+/* 
+  Beispiel: Vollständiger Code für app.js, um Supabase komplett auf Nhost umzustellen.
+  Statt "supabase.createClient(...)" wird der offizielle Nhost-Client (@nhost/nhost-js) verwendet.
+  Alle Supabase-spezifischen Stellen (RPC, from('...'), etc.) wurden entfernt oder durch GraphQL ersetzt.
+  Die Struktur (Events, DOM-Manipulation, Variablen, etc.) bleibt weitgehend gleich.
+*/
+
+import { NhostClient } from '@nhost/nhost-js'
+
+// Nhost-Einstellungen:
+const NHOST_SUBDOMAIN = "IHRE_NHOST_SUBDOMAIN"  // z.B. "abcd1234"
+const NHOST_REGION = "eu-central-1"            // oder andere Region laut Nhost-Dashboard
+
+// GraphQL-Queries/Mutations für die Tabelle "wbs_data" in Nhost:
+const LOAD_TEACHER_DATA = `
+  query LoadTeacherData($teacher_code: String!) {
+    wbs_data(where: {teacher_code: {_eq: $teacher_code}}) {
+      id
+      teacher_code
+      teacher_name
+      data
+    }
+  }
+`;
+
+const UPSERT_TEACHER_DATA = `
+  mutation UpsertTeacherData(
+    $teacher_code: String!
+    $teacher_name: String!
+    $data: jsonb!
+  ) {
+    insert_wbs_data(
+      objects: {
+        teacher_code: $teacher_code
+        teacher_name: $teacher_name
+        data: $data
+      }
+      on_conflict: {
+        constraint: wbs_data_teacher_code_key
+        update_columns: [data, teacher_name, updated_at]
+      }
+    ) {
+      affected_rows
+    }
+  }
+`;
+
+// Neue Bewertungskategorien
 const ASSESSMENT_CATEGORIES = [
   { id: "presentation", name: "Präsentation" },
   { id: "content", name: "Inhalt" },
@@ -11,7 +58,7 @@ const ASSESSMENT_CATEGORIES = [
 ];
 
 // Globale Variablen
-let nhostClient = null;
+let nhost = null;
 let currentUser = null;
 let teacherData = {
   students: [],
@@ -21,22 +68,15 @@ let selectedStudent = null;
 let studentToDelete = null;
 let selectedGradeStudent = null;
 let infoTextSaveTimer = null;
-// Immer das aktuelle Datum verwenden (lokale Zeit in Deutschland)
+
+// Aktuelles Datum (lokale Zeit in Deutschland)
 const today = new Date();
-const defaultDate = today.getFullYear() + '-' + 
-                  String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                  String(today.getDate()).padStart(2, '0');
+const defaultDate = 
+  today.getFullYear() + '-' + 
+  String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+  String(today.getDate()).padStart(2, '0');
 
-// Konstanten
-const NHOST_SUBDOMAIN = "meeeuwopykbtjzdlfmjg";
-const NHOST_REGION = "eu-central-1";
-const DEFAULT_TEACHERS = [
-  { name: "Kretz", code: "KRE", password: "Luna" },
-  { name: "Riffel", code: "RIF", password: "Luna" },
-  { name: "Töllner", code: "TOE", password: "Luna" }
-];
-
-// DOM-Elemente
+// Dom-Elemente
 const mainLoader = document.getElementById("mainLoader");
 const loginSection = document.getElementById("loginSection");
 const appSection = document.getElementById("appSection");
@@ -91,9 +131,16 @@ const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
 const tabs = document.querySelectorAll(".tab");
 const tabContents = document.querySelectorAll(".tab-content");
 
-// Event-Listener hinzufügen, wenn DOM geladen ist
+// Default-Lehrer, analog zum bisherigen System
+const DEFAULT_TEACHERS = [
+  { name: "Kretz", code: "KRE", password: "Luna" },
+  { name: "Riffel", code: "RIF", password: "Luna" },
+  { name: "Töllner", code: "TOE", password: "Luna" }
+];
+
+// Event-Listener, sobald DOM geladen ist
 document.addEventListener("DOMContentLoaded", function() {
-  console.log("WBS Bewertungssystem wird initialisiert...");
+  console.log("WBS Bewertungssystem (Nhost-Version) wird initialisiert...");
   init();
 });
 
@@ -101,15 +148,20 @@ document.addEventListener("DOMContentLoaded", function() {
  * Initialisiert die Anwendung
  */
 async function init() {
+  // Nhost-Client erstellen
+  nhost = new NhostClient({
+    subdomain: NHOST_SUBDOMAIN,
+    region: NHOST_REGION
+  });
+
   if (examDate) {
     examDate.value = defaultDate;
   }
-  
-  // Datenbank initialisieren
+
+  showLoader();
   await initDatabase();
   initTeacherGrid();
   setupEventListeners();
-  
   hideLoader();
 }
 
@@ -120,9 +172,7 @@ function showNotification(message, type = "success") {
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
   notification.textContent = message;
-  
   document.body.appendChild(notification);
-  
   setTimeout(() => {
     notification.remove();
   }, 3000);
@@ -174,17 +224,17 @@ function getAvailableYears() {
   const years = new Set();
   const currentYear = new Date().getFullYear();
   
-  // Jahre vom aktuellen Jahr bis 10 Jahre in die Zukunft, beginnend mit aktuellem Jahr
+  // Jahre vom aktuellen Jahr bis 10 Jahre in die Zukunft
   for (let i = 0; i <= 10; i++) {
     years.add((currentYear + i).toString());
   }
   
-  // Auch Jahre aus vorhandenen Schülerdaten hinzufügen
+  // Jahre aus den Schülerdaten hinzufügen
   teacherData.students.forEach(student => {
     years.add(getYearFromDate(student.examDate));
   });
   
-  // Absteigend sortieren mit aktuellem Jahr zuerst
+  // Absteigend sortieren
   return Array.from(years).sort((a, b) => a - b).reverse();
 }
 
@@ -212,64 +262,26 @@ function generateId() {
  * Prüft, ob bereits ein Student an einem Prüfungstag existiert
  */
 function isStudentOnExamDay(studentId, examDate) {
-  return teacherData.students.some(s => s.id !== studentId && s.examDate === examDate);
+  return teacherData.students.some(
+    s => s.id !== studentId && s.examDate === examDate
+  );
 }
 
 /**
- * Initialisiert die Datenbankverbindung
+ * Nhost-Datenbank vorbereiten
  */
 async function initDatabase() {
   try {
-    showLoader();
-
-    // Prüfen, ob nhost global verfügbar ist
-    if (typeof nhost === 'undefined') {
-      console.error("nhost ist nicht definiert. Bitte Bibliothek prüfen.");
-      showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
-      hideLoader();
-      return false;
-    }
-    
-    // Korrekte Nhost Client Initialisierung mit der UMD-Version
-    nhostClient = new nhost.NhostClient({
-      subdomain: NHOST_SUBDOMAIN,
-      region: NHOST_REGION
-    });
-    
-    console.log("Nhost-Client erfolgreich initialisiert");
-    
-    // Überprüfen, ob die Tabelle existiert, indem wir versuchen, Daten abzurufen
-    try {
-      const { data, error } = await nhostClient.graphql.request(`
-        query CheckTableExists {
-          wbs_data {
-            id
-          }
-        }
-      `);
-      
-      if (error) {
-        console.error("Tabelle existiert möglicherweise nicht:", error);
-        showNotification("Datenbank-Struktur wird initialisiert...", "warning");
-      } else {
-        console.log("Tabelle existiert und kann abgefragt werden");
-      }
-    } catch (err) {
-      console.error("Fehler bei GraphQL-Abfrage:", err);
-      showNotification("Bitte stellen Sie sicher, dass die Datenbank-Tabellen existieren.", "error");
-    }
-    
-    hideLoader();
+    console.log("Nhost-Verbindung – keine automatische Tabellenerstellung. Bitte sicherstellen, dass 'wbs_data' existiert.");
     return true;
   } catch (error) {
-    console.error("Fehler bei der Datenbankinitialisierung:", error);
-    hideLoader();
+    console.error("Fehler bei der Nhost-Initialisierung:", error);
     return false;
   }
 }
 
 /**
- * Funktion zur Migration der alten Bewertungskategorien zu den neuen
+ * Führt eine Migration der alten Bewertungskategorien auf die neuen durch
  */
 function migrateAssessmentCategories() {
   const categoryMapping = {
@@ -277,37 +289,25 @@ function migrateAssessmentCategories() {
     'workBehavior': 'content',
     'teamwork': 'language',
     'quality': 'impression',
-    'reflection': 'reflection', // bleibt gleich
-    'documentation': 'documentation' // bleibt gleich
-    // Die neuen Kategorien 'examination' und 'expertise' haben keinen alten Wert
+    'reflection': 'reflection', 
+    'documentation': 'documentation'
   };
-
-  // Für jeden Schüler die Bewertungen aktualisieren
   for (const studentId in teacherData.assessments) {
     const assessment = teacherData.assessments[studentId];
-    
-    // Für jede alte Kategorie
     for (const oldCategory in categoryMapping) {
       if (assessment.hasOwnProperty(oldCategory)) {
-        // Übertrage den Wert zur neuen Kategorie
         const newCategory = categoryMapping[oldCategory];
         assessment[newCategory] = assessment[oldCategory];
-        
-        // Lösche die alte Kategorie, wenn nicht identisch mit der neuen
         if (oldCategory !== newCategory) {
           delete assessment[oldCategory];
         }
       }
     }
-    
-    // Füge die neuen Kategorien mit Standardwert 2 hinzu, falls nicht vorhanden
     ASSESSMENT_CATEGORIES.forEach(category => {
       if (!assessment.hasOwnProperty(category.id)) {
         assessment[category.id] = 2;
       }
     });
-
-    // Füge das Textfeld für Kommentare hinzu, falls nicht vorhanden
     if (!assessment.hasOwnProperty('infoText')) {
       assessment['infoText'] = '';
     }
@@ -315,41 +315,22 @@ function migrateAssessmentCategories() {
 }
 
 /**
- * Lädt die Daten des aktuellen Lehrers
+ * Lädt die Daten des aktuellen Lehrers via GraphQL
  */
 async function loadTeacherData() {
-  if (!currentUser || !nhostClient) return false;
-  
+  if (!currentUser) return false;
   try {
-    // Sicherstellen, dass der GraphQL-Client verfügbar ist
-    if (!nhostClient.graphql) {
-      console.error("GraphQL-Client ist nicht verfügbar");
-      showNotification("Fehler beim Zugriff auf die Datenbank. Bitte Seite neu laden.", "error");
-      return false;
-    }
-    
-    const { data, error } = await nhostClient.graphql.request(`
-      query GetTeacherData($code: String!) {
-        wbs_data(where: {teacher_code: {_eq: $code}}) {
-          data
-        }
-      }
-    `, { code: currentUser.code });
+    const { data, error } = await nhost.graphql.request(LOAD_TEACHER_DATA, {
+      teacher_code: currentUser.code
+    });
     
     if (error) {
-      console.error("Error loading teacher data:", error);
+      console.error("Fehler beim Laden der Lehrerdaten:", error);
       showNotification("Fehler beim Laden der Daten.", "error");
       return false;
     }
-    
     if (data && data.wbs_data && data.wbs_data.length > 0) {
       teacherData = data.wbs_data[0].data;
-      
-      // Sicherstellen, dass die Schüler- und Bewertungsstrukturen existieren
-      if (!teacherData.students) teacherData.students = [];
-      if (!teacherData.assessments) teacherData.assessments = {};
-      
-      // Migration der Kategorien durchführen
       migrateAssessmentCategories();
       return true;
     } else {
@@ -359,64 +340,39 @@ async function loadTeacherData() {
       };
       return await saveTeacherData();
     }
-  } catch (error) {
-    console.error("Error in loadTeacherData:", error);
+  } catch (err) {
+    console.error("Fehler in loadTeacherData:", err);
     showNotification("Fehler beim Laden der Daten.", "error");
     return false;
   }
 }
 
 /**
- * Speichert die Daten des aktuellen Lehrers
+ * Speichert die Daten des aktuellen Lehrers via GraphQL
  */
 async function saveTeacherData() {
-  if (!currentUser || !nhostClient) return false;
-  
+  if (!currentUser) return false;
   try {
-    // Sicherstellen, dass der GraphQL-Client verfügbar ist
-    if (!nhostClient.graphql) {
-      console.error("GraphQL-Client ist nicht verfügbar");
-      showNotification("Fehler beim Zugriff auf die Datenbank. Bitte Seite neu laden.", "error");
-      return false;
-    }
-    
-    const { data, error } = await nhostClient.graphql.request(`
-      mutation UpsertTeacherData($code: String!, $name: String!, $data: jsonb!) {
-        insert_wbs_data_one(
-          object: {
-            teacher_code: $code, 
-            teacher_name: $name, 
-            data: $data
-          },
-          on_conflict: {
-            constraint: wbs_data_teacher_code_key,
-            update_columns: [teacher_name, data, updated_at]
-          }
-        ) {
-          id
-        }
-      }
-    `, { 
-      code: currentUser.code, 
-      name: currentUser.name, 
-      data: teacherData 
+    const { error } = await nhost.graphql.request(UPSERT_TEACHER_DATA, {
+      teacher_code: currentUser.code,
+      teacher_name: currentUser.name,
+      data: teacherData
     });
-    
     if (error) {
-      console.error("Error saving teacher data:", error);
+      console.error("Fehler beim Speichern der Daten:", error);
       showNotification("Fehler beim Speichern der Daten.", "error");
       return false;
     }
     return true;
-  } catch (error) {
-    console.error("Error in saveTeacherData:", error);
+  } catch (err) {
+    console.error("Fehler in saveTeacherData:", err);
     showNotification("Fehler beim Speichern der Daten.", "error");
     return false;
   }
 }
 
 /**
- * Initialisiert das Lehrergrid im Login-Bereich
+ * Initialisiert das Lehrer-Grid im Login-Bereich
  */
 function initTeacherGrid() {
   if (!teacherGrid) return;
@@ -441,7 +397,7 @@ function initTeacherGrid() {
  * Richtet alle Event-Listener ein
  */
 function setupEventListeners() {
-  // Login-Bereich
+  // Login
   if (closePasswordModal) {
     closePasswordModal.addEventListener("click", () => {
       passwordModal.style.display = "none";
@@ -489,17 +445,17 @@ function setupEventListeners() {
     });
   });
   
-  // Schüler-Tab
+  // Schüler
   if (addStudentBtn) {
     addStudentBtn.addEventListener("click", addNewStudent);
   }
   
-  // Bewertungs-Tab
+  // Bewertung
   if (assessmentDateSelect) {
     assessmentDateSelect.addEventListener("change", updateAssessmentStudentList);
   }
   
-  // Übersichts-Tab
+  // Übersicht
   if (overviewYearSelect) {
     overviewYearSelect.addEventListener("change", () => {
       populateOverviewDateSelect();
@@ -510,7 +466,7 @@ function setupEventListeners() {
     overviewDateSelect.addEventListener("change", updateOverviewContent);
   }
   
-  // Einstellungs-Tab
+  // Einstellungen
   if (settingsYearSelect) {
     settingsYearSelect.addEventListener("change", () => {
       populateSettingsDateSelect();
@@ -535,7 +491,6 @@ function setupEventListeners() {
   if (deleteStudentBtn) {
     deleteStudentBtn.addEventListener("click", showDeleteConfirmation);
   }
-  
   if (closeEditGradeModal) {
     closeEditGradeModal.addEventListener("click", () => {
       editGradeModal.style.display = "none";
@@ -544,7 +499,6 @@ function setupEventListeners() {
   if (saveGradeBtn) {
     saveGradeBtn.addEventListener("click", saveEditedGrade);
   }
-  
   if (closeConfirmDeleteModal) {
     closeConfirmDeleteModal.addEventListener("click", () => {
       confirmDeleteModal.style.display = "none";
@@ -561,7 +515,7 @@ function setupEventListeners() {
 }
 
 /**
- * Zeigt den Passwort-Dialog an
+ * Zeigt den Passwort-Dialog
  */
 function showPasswordModal(teacher) {
   loginPrompt.textContent = `Bitte geben Sie das Passwort für ${teacher.name} ein:`;
@@ -576,19 +530,13 @@ function showPasswordModal(teacher) {
 }
 
 /**
- * Führt den Login-Prozess durch
+ * Login-Prozess
  */
 async function login() {
   if (passwordInput.value === currentUser.password) {
     passwordModal.style.display = "none";
     showLoader();
-    const dataLoaded = await loadTeacherData();
-    if (!dataLoaded) {
-      showNotification("Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.", "error");
-      hideLoader();
-      return;
-    }
-    
+    await loadTeacherData();
     loginSection.style.display = "none";
     appSection.style.display = "block";
     teacherAvatar.textContent = currentUser.code.charAt(0);
@@ -602,15 +550,13 @@ async function login() {
 }
 
 /**
- * Loggt den Benutzer aus
+ * Logout
  */
 function logout() {
-  // Timer löschen bei Abmeldung
   if (infoTextSaveTimer) {
     clearInterval(infoTextSaveTimer);
     infoTextSaveTimer = null;
   }
-  
   currentUser = null;
   teacherData = {
     students: [],
@@ -618,11 +564,11 @@ function logout() {
   };
   loginSection.style.display = "block";
   appSection.style.display = "none";
-  showNotification("Sie wurden abgemeldet.");
+  showNotification("Abgemeldet.");
 }
 
 /**
- * Berechnet die Durchschnittsnote für eine Bewertung
+ * Berechnet die Durchschnittsnote
  */
 function calculateAverageGrade(assessment) {
   if (!assessment) return null;
@@ -639,7 +585,7 @@ function calculateAverageGrade(assessment) {
 }
 
 /**
- * Aktualisiert den Studenten-Tab
+ * Aktualisiert den "Schüler anlegen"-Tab
  */
 function updateStudentsTab() {
   if (!studentsTable) return;
@@ -671,7 +617,7 @@ function updateStudentsTab() {
 }
 
 /**
- * Fügt einen neuen Schüler hinzu
+ * Legt einen neuen Prüfling an
  */
 async function addNewStudent() {
   const name = newStudentName.value.trim();
@@ -702,15 +648,11 @@ async function addNewStudent() {
   teacherData.students.push(newStudent);
   teacherData.assessments[newStudent.id] = {};
   
-  // Standardwerte für alle Bewertungskategorien setzen
+  // Standardwerte für Kategorien
   ASSESSMENT_CATEGORIES.forEach(category => {
     teacherData.assessments[newStudent.id][category.id] = 2;
   });
-  
-  // Leeres Textfeld für Informationen hinzufügen
   teacherData.assessments[newStudent.id].infoText = '';
-  
-  // Standardwert für Endnote
   teacherData.assessments[newStudent.id].finalGrade = 2.0;
   
   const saved = await saveTeacherData();
@@ -725,7 +667,7 @@ async function addNewStudent() {
 }
 
 /**
- * Zeigt das Modal zum Bearbeiten eines Schülers an
+ * Zeigt das Modal zum Bearbeiten eines Prüflings
  */
 function showEditStudentModal(student) {
   editStudentName.value = student.name;
@@ -735,7 +677,7 @@ function showEditStudentModal(student) {
 }
 
 /**
- * Speichert die Änderungen an einem Schüler
+ * Speichert Änderungen an einem Prüfling
  */
 async function saveEditedStudent() {
   const name = editStudentName.value.trim();
@@ -775,7 +717,7 @@ async function saveEditedStudent() {
 }
 
 /**
- * Zeigt die Bestätigung zum Löschen eines Schülers an
+ * Zeigt die Bestätigung zum Löschen eines Prüflings
  */
 function showDeleteConfirmation() {
   studentToDelete = selectedStudent;
@@ -785,7 +727,7 @@ function showDeleteConfirmation() {
 }
 
 /**
- * Löscht einen Schüler
+ * Löscht einen Prüfling
  */
 async function deleteStudent() {
   if (!studentToDelete) return;
@@ -805,7 +747,7 @@ async function deleteStudent() {
 }
 
 /**
- * Aktualisiert den Bewertungs-Tab
+ * Bewertungs-Tab aktualisieren
  */
 function updateAssessmentTab() {
   populateAssessmentDateSelect();
@@ -813,7 +755,7 @@ function updateAssessmentTab() {
 }
 
 /**
- * Füllt das Datum-Dropdown im Bewertungs-Tab
+ * Datum-Dropdown im Bewertungs-Tab füllen
  */
 function populateAssessmentDateSelect() {
   if (!assessmentDateSelect) return;
@@ -828,7 +770,7 @@ function populateAssessmentDateSelect() {
 }
 
 /**
- * Aktualisiert die Schülerliste im Bewertungs-Tab
+ * Schülerliste im Bewertungs-Tab aktualisieren
  */
 function updateAssessmentStudentList() {
   if (!assessmentStudentList || !assessmentContent) return;
@@ -839,7 +781,7 @@ function updateAssessmentStudentList() {
     assessmentContent.innerHTML = `
       <div class="welcome-card">
         <h2>Willkommen bei der WBS Bewertungsapp</h2>
-        <p>Bitte wählen Sie einen Prüfungstag und Prüfling aus der Liste oder legen Sie einen neuen Prüfling an.</p>
+        <p>Bitte einen Prüfungstag und Prüfling auswählen oder einen neuen Prüfling anlegen.</p>
       </div>
     `;
     return;
@@ -871,27 +813,20 @@ function updateAssessmentStudentList() {
 }
 
 /**
- * Einrichten des Autosave-Timers für den Informationstext
+ * Timer für automatisches Speichern des Infotextes
  */
 function setupInfoTextAutoSave(studentId) {
-  // Bestehenden Timer löschen, falls vorhanden
   if (infoTextSaveTimer) {
     clearInterval(infoTextSaveTimer);
   }
-  
-  // Neuen Timer einrichten
   infoTextSaveTimer = setInterval(async () => {
     const infoTextArea = document.getElementById("studentInfoText");
     if (infoTextArea && infoTextArea.dataset.changed === "true") {
       const infoText = infoTextArea.value;
-      
-      // Speichere den Text in der Datenstruktur
       if (teacherData.assessments[studentId]) {
         teacherData.assessments[studentId].infoText = infoText;
         await saveTeacherData();
         infoTextArea.dataset.changed = "false";
-        
-        // Kleine Benachrichtigung, dass gespeichert wurde
         showNotification("Informationstext wurde automatisch gespeichert.", "success");
         infoTextArea.classList.add('save-flash');
         setTimeout(() => {
@@ -899,11 +834,11 @@ function setupInfoTextAutoSave(studentId) {
         }, 1000);
       }
     }
-  }, 60000); // Alle 60 Sekunden speichern
+  }, 60000);
 }
 
 /**
- * Zeigt das Bewertungsformular für einen Schüler an
+ * Bewertungsformular für einen Prüfling anzeigen
  */
 function showAssessmentForm(student) {
   selectedStudent = student;
@@ -921,7 +856,7 @@ function showAssessmentForm(student) {
       
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
-        <textarea id="studentInfoText" rows="6" placeholder="Notizen zum Prüfling eingeben...">${infoText}</textarea>
+        <textarea id="studentInfoText" rows="6" placeholder="Notizen...">${infoText}</textarea>
       </div>
       
       <div class="final-grade-display">Ø ${avgGrade || '0.0'}</div>
@@ -955,11 +890,9 @@ function showAssessmentForm(student) {
       </div>
     `;
   });
-  
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
-  // Eventlistener für Notenwahl-Buttons
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
     btn.addEventListener("click", async () => {
       const category = btn.parentElement.dataset.category;
@@ -984,7 +917,6 @@ function showAssessmentForm(student) {
     });
   });
   
-  // Eventlistener für Endnote
   const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
   if (saveFinalGradeBtn) {
     saveFinalGradeBtn.addEventListener("click", async () => {
@@ -1001,7 +933,6 @@ function showAssessmentForm(student) {
     });
   }
   
-  // Eventlistener für Durchschnitt-Button
   const useAverageBtn = document.getElementById("useAverageBtn");
   if (useAverageBtn) {
     useAverageBtn.addEventListener("click", async () => {
@@ -1018,15 +949,12 @@ function showAssessmentForm(student) {
     });
   }
   
-  // Event-Listeners für den Informationstext mit Autosave
   const infoTextArea = document.getElementById("studentInfoText");
   if (infoTextArea) {
     infoTextArea.dataset.changed = "false";
-    
     infoTextArea.addEventListener("input", () => {
       infoTextArea.dataset.changed = "true";
     });
-    
     infoTextArea.addEventListener("blur", async () => {
       if (infoTextArea.dataset.changed === "true") {
         teacherData.assessments[student.id].infoText = infoTextArea.value;
@@ -1035,14 +963,12 @@ function showAssessmentForm(student) {
         showNotification("Informationstext gespeichert.");
       }
     });
-    
-    // Autosave einrichten
     setupInfoTextAutoSave(student.id);
   }
 }
 
 /**
- * Zeigt das Modal zum Bearbeiten einer Note an
+ * Zeigt das Modal zum Bearbeiten einer Endnote
  */
 function showEditGradeModal(student) {
   selectedGradeStudent = student;
@@ -1081,7 +1007,7 @@ async function saveEditedGrade() {
 }
 
 /**
- * Aktualisiert den Übersichts-Tab
+ * Übersicht-Tab aktualisieren
  */
 function updateOverviewTab() {
   populateOverviewYearSelect();
@@ -1090,7 +1016,7 @@ function updateOverviewTab() {
 }
 
 /**
- * Füllt das Jahr-Dropdown in der Übersicht
+ * Jahr-Dropdown in Übersicht befüllen
  */
 function populateOverviewYearSelect() {
   if (!overviewYearSelect) return;
@@ -1105,7 +1031,7 @@ function populateOverviewYearSelect() {
 }
 
 /**
- * Füllt das Datum-Dropdown in der Übersicht
+ * Datum-Dropdown in Übersicht befüllen
  */
 function populateOverviewDateSelect() {
   if (!overviewDateSelect) return;
@@ -1121,7 +1047,7 @@ function populateOverviewDateSelect() {
 }
 
 /**
- * Aktualisiert den Inhalt der Übersicht
+ * Übersichts-Inhalt aktualisieren
  */
 function updateOverviewContent() {
   if (!overviewTable) return;
@@ -1129,6 +1055,7 @@ function updateOverviewContent() {
   const selectedDate = overviewDateSelect.value;
   const tbody = overviewTable.querySelector('tbody');
   tbody.innerHTML = '';
+  
   let filteredStudents = [...teacherData.students];
   if (selectedYear) {
     filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
@@ -1137,17 +1064,18 @@ function updateOverviewContent() {
     filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
   }
   filteredStudents.sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
+  
   if (filteredStudents.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = '<td colspan="12">Keine Prüflinge gefunden</td>';
     tbody.appendChild(tr);
     return;
   }
+  
   filteredStudents.forEach(student => {
     const assessment = teacherData.assessments[student.id] || {};
     const avgGrade = calculateAverageGrade(assessment);
     const finalGrade = assessment.finalGrade || avgGrade || '-';
-    
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${student.name}</td>
@@ -1173,14 +1101,14 @@ function updateOverviewContent() {
 }
 
 /**
- * Aktualisiert den Einstellungs-Tab
+ * Einstellungen-Tab aktualisieren
  */
 function updateSettingsTab() {
   populateSettingsYearSelect();
 }
 
 /**
- * Füllt das Jahr-Dropdown in den Einstellungen
+ * Jahr-Dropdown in Einstellungen befüllen
  */
 function populateSettingsYearSelect() {
   if (!settingsYearSelect) return;
@@ -1195,7 +1123,7 @@ function populateSettingsYearSelect() {
 }
 
 /**
- * Füllt das Datum-Dropdown in den Einstellungen
+ * Datum-Dropdown in Einstellungen befüllen
  */
 function populateSettingsDateSelect() {
   if (!settingsDateSelect) return;
@@ -1211,7 +1139,7 @@ function populateSettingsDateSelect() {
 }
 
 /**
- * Bestätigt das Löschen aller Daten
+ * Bestätigen, alle Daten zu löschen
  */
 function confirmDeleteAllData() {
   const code = deleteVerificationCode.value.trim();
@@ -1226,7 +1154,7 @@ function confirmDeleteAllData() {
 }
 
 /**
- * Löscht alle Daten des aktuellen Lehrers
+ * Alle Daten löschen
  */
 async function deleteAllData() {
   showLoader();
@@ -1245,8 +1173,30 @@ async function deleteAllData() {
 }
 
 /**
- * Exportiert die Bewertungsdaten als JSON
+ * Daten exportieren (TXT oder JSON)
  */
+function exportData() {
+  const selectedYear = settingsYearSelect.value;
+  const selectedDate = settingsDateSelect.value;
+  let filteredStudents = [...teacherData.students];
+
+  if (selectedYear) {
+    filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
+  }
+  if (selectedDate) {
+    filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
+  }
+
+  const exportTXT = document.getElementById("exportTXT");
+  const exportJSON = document.getElementById("exportJSON");
+
+  if (exportJSON && exportJSON.checked) {
+    exportToJSON(filteredStudents, selectedYear, selectedDate);
+  } else {
+    exportToTXT(filteredStudents, selectedYear, selectedDate);
+  }
+}
+
 function exportToJSON(filteredStudents, selectedYear, selectedDate) {
   try {
     const exportObject = {
@@ -1254,9 +1204,9 @@ function exportToJSON(filteredStudents, selectedYear, selectedDate) {
         name: currentUser.name,
         code: currentUser.code
       },
-      filters: { 
+      filters: {
         year: selectedYear || "Alle", 
-        date: selectedDate ? formatDate(selectedDate) : "Alle" 
+        date: selectedDate ? formatDate(selectedDate) : "Alle"
       },
       exportDate: new Date().toLocaleDateString('de-DE'),
       students: filteredStudents.map(s => {
@@ -1266,144 +1216,62 @@ function exportToJSON(filteredStudents, selectedYear, selectedDate) {
           name: s.name,
           examDate: formatDate(s.examDate),
           createdAt: s.createdAt,
-          infoText: a.infoText || '',
-          finalGrade: a.finalGrade,
-          avgGrade: calculateAverageGrade(a),
-          categories: ASSESSMENT_CATEGORIES.reduce((obj, cat) => {
-            obj[cat.name] = a[cat.id] || '-';
-            return obj;
-          }, {})
+          infoText: a.infoText || "",
+          finalGrade: a.finalGrade || calculateAverageGrade(a) || "",
+          presentation: a.presentation || 0,
+          content: a.content || 0,
+          language: a.language || 0,
+          impression: a.impression || 0,
+          examination: a.examination || 0,
+          reflection: a.reflection || 0,
+          expertise: a.expertise || 0,
+          documentation: a.documentation || 0
         };
       })
     };
-    
-    const jsonString = JSON.stringify(exportObject, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement("a");
-    link.href = url;
-    
-    // Dateiname mit Datum
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    let filename = `wbs_export_${dateStr}`;
-    
-    if (selectedYear) filename += `_${selectedYear}`;
-    if (selectedDate) filename += `_${formatDate(selectedDate).replace(/\./g, "-")}`;
-    
-    link.download = `${filename}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    
-    showNotification("Bewertungen wurden als JSON-Datei exportiert.");
-    return true;
-  } catch (error) {
-    console.error("Fehler beim JSON-Export:", error);
-    showNotification("Fehler beim Erstellen der JSON-Datei: " + error.message, "error");
-    return false;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `wbs_export_${new Date().getTime()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  } catch (e) {
+    showNotification("Fehler beim JSON-Export.", "error");
   }
 }
 
-/**
- * Exportiert die Bewertungsdaten als TXT
- */
 function exportToTXT(filteredStudents, selectedYear, selectedDate) {
   try {
-    let textContent = "WBS BEWERTUNGSSYSTEM - EXPORT\n";
-    textContent += "==============================\n\n";
-    textContent += `Lehrer: ${currentUser.name} (${currentUser.code})\n`;
-    textContent += `Exportdatum: ${new Date().toLocaleDateString('de-DE')}\n`;
-    textContent += `Filter: Jahr ${selectedYear || "Alle"}, Datum ${selectedDate ? formatDate(selectedDate) : "Alle"}\n\n`;
-    textContent += "PRÜFLINGE\n";
-    textContent += "=========\n\n";
+    let lines = [];
+    lines.push(`Lehrer: ${currentUser.name} (${currentUser.code})`);
+    lines.push(`Exportdatum: ${new Date().toLocaleDateString('de-DE')}`);
+    lines.push(`Filter: Jahr=${selectedYear || "Alle"}, Tag=${selectedDate ? formatDate(selectedDate) : "Alle"}`);
+    lines.push("--------------------------------------------");
     
-    filteredStudents.forEach(student => {
-      const a = teacherData.assessments[student.id] || {};
-      const avgGrade = calculateAverageGrade(a);
-      const finalGrade = a.finalGrade || avgGrade || '-';
-      
-      textContent += `Name: ${student.name}\n`;
-      textContent += `Datum: ${formatDate(student.examDate)}\n`;
-      textContent += `Endnote: ${finalGrade}\n`;
-      textContent += `Durchschnitt: ${avgGrade || '-'}\n\n`;
-      
-      // Bewertungskategorien
-      textContent += "Bewertungen:\n";
-      ASSESSMENT_CATEGORIES.forEach(category => {
-        textContent += `- ${category.name}: ${a[category.id] || '-'}\n`;
+    filteredStudents.forEach(s => {
+      const a = teacherData.assessments[s.id] || {};
+      const avg = calculateAverageGrade(a);
+      const finalGrade = a.finalGrade || avg || '-';
+      lines.push(`Prüfling: ${s.name}`);
+      lines.push(`Datum: ${formatDate(s.examDate)}`);
+      lines.push(`Endnote: ${finalGrade}`);
+      lines.push(`Info: ${a.infoText || ""}`);
+      lines.push("Bewertungen:");
+      ASSESSMENT_CATEGORIES.forEach(cat => {
+        lines.push(`  - ${cat.name}: ${a[cat.id] || 0}`);
       });
-      
-      // Infotext, falls vorhanden
-      if (a.infoText && a.infoText.trim()) {
-        textContent += "\nInformationen:\n";
-        textContent += a.infoText + "\n";
-      }
-      
-      textContent += "\n---------------------------\n\n";
+      lines.push("--------------------------------------------");
     });
     
-    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement("a");
-    link.href = url;
-    
-    // Dateiname mit Datum
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    let filename = `wbs_export_${dateStr}`;
-    
-    if (selectedYear) filename += `_${selectedYear}`;
-    if (selectedDate) filename += `_${formatDate(selectedDate).replace(/\./g, "-")}`;
-    
-    link.download = `${filename}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-    
-    showNotification("Bewertungen wurden als TXT-Datei exportiert.");
-    return true;
-  } catch (error) {
-    console.error("Fehler beim TXT-Export:", error);
-    showNotification("Fehler beim Erstellen der TXT-Datei: " + error.message, "error");
-    return false;
-  }
-}
-
-/**
- * Exportiert die Bewertungsdaten
- */
-async function exportData() {
-  const exportAsTXT = document.getElementById('exportTXT').checked;
-  
-  // Filter anwenden
-  const selectedYear = settingsYearSelect.value;
-  const selectedDate = settingsDateSelect.value;
-  let filteredStudents = [...teacherData.students];
-  
-  if (selectedYear) {
-    filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
-  }
-  if (selectedDate) {
-    filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
-  }
-  
-  // Sortiere Schüler nach Datum und Namen
-  filteredStudents.sort((a, b) => {
-    const dateComp = new Date(b.examDate) - new Date(a.examDate);
-    if (dateComp !== 0) return dateComp;
-    return a.name.localeCompare(b.name);
-  });
-  
-  if (filteredStudents.length === 0) {
-    showNotification("Keine Daten zum Exportieren gefunden.", "warning");
-    return;
-  }
-  
-  // Je nach ausgewähltem Format exportieren
-  if (exportAsTXT) {
-    exportToTXT(filteredStudents, selectedYear, selectedDate);
-  } else {
-    exportToJSON(filteredStudents, selectedYear, selectedDate);
+    const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(lines.join("\n"));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `wbs_export_${new Date().getTime()}.txt`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  } catch (e) {
+    showNotification("Fehler beim TXT-Export.", "error");
   }
 }
