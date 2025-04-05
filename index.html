@@ -15,7 +15,7 @@
   <div id="loginSection">
     <header>
       <h1>WBS Bewertungssystem</h1>
-      <div class="version">v1.3</div>
+      <div class="version">v1.3.1</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -278,7 +278,16 @@
   </div>
 
   <!-- Nhost library -->
-  <script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js@2"></script>
+  <script src="https://esm.sh/@nhost/nhost-js@2"></script>
+  <script>
+    // Globalen NhostClient für die Anwendung verfügbar machen
+    window.NhostClient = window.nhost ? window.nhost.NhostClient : undefined;
+    
+    // Fallback, falls die ESM-Version nicht korrekt geladen wird
+    if (!window.NhostClient && typeof nhost !== 'undefined' && nhost.NhostClient) {
+      window.NhostClient = nhost.NhostClient;
+    }
+  </script>
   
   <!-- Application JS -->
   <script src="app.js"></script>

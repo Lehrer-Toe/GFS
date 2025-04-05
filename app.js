@@ -222,20 +222,28 @@ async function initDatabase() {
   try {
     showLoader();
 
-    if (typeof nhost === 'undefined') {
-      console.error("Nhost ist nicht definiert. Bitte Bibliothek prüfen.");
+    // Prüfen, ob NhostClient verfügbar ist
+    if (typeof NhostClient === 'undefined') {
+      console.error("NhostClient ist nicht definiert. Bitte Bibliothek prüfen.");
       showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
       hideLoader();
       return false;
     }
     
     // Korrekte Nhost Client Initialisierung
-    nhostClient = new nhost.NhostClient({
-      subdomain: NHOST_SUBDOMAIN,
-      region: NHOST_REGION
-    });
-    
-    console.log("Nhost-Client erfolgreich initialisiert");
+    try {
+      nhostClient = new NhostClient({
+        subdomain: NHOST_SUBDOMAIN,
+        region: NHOST_REGION
+      });
+      
+      console.log("Nhost-Client erfolgreich initialisiert");
+    } catch (error) {
+      console.error("Fehler bei der Nhost-Client-Initialisierung:", error);
+      showNotification("Fehler bei der Initialisierung des Nhost-Clients. Bitte Seite neu laden.", "error");
+      hideLoader();
+      return false;
+    }
     
     // Überprüfen, ob die Tabelle existiert, indem wir versuchen, Daten abzurufen
     try {
@@ -317,9 +325,16 @@ function migrateAssessmentCategories() {
  * Lädt die Daten des aktuellen Lehrers
  */
 async function loadTeacherData() {
-  if (!currentUser) return false;
+  if (!currentUser || !nhostClient) return false;
   
   try {
+    // Sicherstellen, dass der GraphQL-Client verfügbar ist
+    if (!nhostClient.graphql) {
+      console.error("GraphQL-Client ist nicht verfügbar");
+      showNotification("Fehler beim Zugriff auf die Datenbank. Bitte Seite neu laden.", "error");
+      return false;
+    }
+    
     const { data, error } = await nhostClient.graphql.request(`
       query GetTeacherData($code: String!) {
         wbs_data(where: {teacher_code: {_eq: $code}}) {
@@ -336,6 +351,11 @@ async function loadTeacherData() {
     
     if (data && data.wbs_data && data.wbs_data.length > 0) {
       teacherData = data.wbs_data[0].data;
+      
+      // Sicherstellen, dass die Schüler- und Bewertungsstrukturen existieren
+      if (!teacherData.students) teacherData.students = [];
+      if (!teacherData.assessments) teacherData.assessments = {};
+      
       // Migration der Kategorien durchführen
       migrateAssessmentCategories();
       return true;
@@ -357,9 +377,16 @@ async function loadTeacherData() {
  * Speichert die Daten des aktuellen Lehrers
  */
 async function saveTeacherData() {
-  if (!currentUser) return false;
+  if (!currentUser || !nhostClient) return false;
   
   try {
+    // Sicherstellen, dass der GraphQL-Client verfügbar ist
+    if (!nhostClient.graphql) {
+      console.error("GraphQL-Client ist nicht verfügbar");
+      showNotification("Fehler beim Zugriff auf die Datenbank. Bitte Seite neu laden.", "error");
+      return false;
+    }
+    
     const { data, error } = await nhostClient.graphql.request(`
       mutation UpsertTeacherData($code: String!, $name: String!, $data: jsonb!) {
         insert_wbs_data_one(
@@ -535,7 +562,7 @@ function setupEventListeners() {
       confirmDeleteModal.style.display = "none";
     });
   }
-if (confirmDeleteBtn) {
+  if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener("click", deleteStudent);
   }
 }
@@ -562,7 +589,13 @@ async function login() {
   if (passwordInput.value === currentUser.password) {
     passwordModal.style.display = "none";
     showLoader();
-    await loadTeacherData();
+    const dataLoaded = await loadTeacherData();
+    if (!dataLoaded) {
+      showNotification("Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.", "error");
+      hideLoader();
+      return;
+    }
+    
     loginSection.style.display = "none";
     appSection.style.display = "block";
     teacherAvatar.textContent = currentUser.code.charAt(0);
