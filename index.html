@@ -22,7 +22,7 @@
       <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
       
       <div class="teacher-grid" id="teacherGrid">
-        <!-- Teacher cards will be generated here -->
+        <!-- Teacher cards werden hier generiert -->
       </div>
       
       <div class="modal" id="passwordModal">
@@ -60,6 +60,7 @@
         <div class="tab" data-tab="settings">Einstellungen</div>
       </div>
       
+      <!-- Schüler anlegen -->
       <div class="tab-content active" id="students-tab">
         <div class="main-layout">
           <div class="sidebar">
@@ -99,6 +100,7 @@
         </div>
       </div>
       
+      <!-- Bewertung -->
       <div class="tab-content" id="assessment-tab">
         <div class="main-layout">
           <div class="sidebar">
@@ -129,6 +131,7 @@
         </div>
       </div>
       
+      <!-- Übersicht -->
       <div class="tab-content" id="overview-tab">
         <h2>Übersicht aller Bewertungen</h2>
         
@@ -175,6 +178,7 @@
         </div>
       </div>
       
+      <!-- Einstellungen -->
       <div class="tab-content" id="settings-tab">
         <h2>Einstellungen</h2>
         
@@ -222,6 +226,7 @@
       </div>
     </div>
     
+    <!-- Modals -->
     <div class="modal" id="editStudentModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -267,7 +272,7 @@
           <h3>Prüfling löschen</h3>
           <button class="modal-close" id="closeConfirmDeleteModal">&times;</button>
         </div>
-        <p>Sind Sie sicher, dass Sie diesen Prüfling und alle zugehörigen Bewertungen löschen möchten?</p>
+        <p>Sind Sie sicher, dass der Prüfling samt Bewertungen gelöscht werden soll?</p>
         <p id="deleteStudentName" style="font-weight: bold;"></p>
         <div class="modal-footer">
           <button id="cancelDeleteBtn">Abbrechen</button>
@@ -277,8 +282,29 @@
     </div>
   </div>
 
-  <!-- Supabase library -->
-  <script src="https://unpkg.com/@nhost/nhost-js@2/dist/nhost-js.umd.min.js"></script>
+  <!-- Nhost-Bibliothek -->
+  <script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js@1.13.0/dist/nhost-js.min.js"></script>
+  <!-- Nhost-Kompatibilitätslayer -->
+  <script>
+    if (typeof NhostClient === 'undefined') {
+      if (typeof nhost !== 'undefined') {
+        window.NhostClient = nhost.NhostClient || function(config) {
+          return nhost.createClient(config);
+        };
+      } else {
+        console.error("Nhost-Bibliothek konnte nicht geladen werden!");
+        window.NhostClient = function() {
+          return {
+            graphql: {
+              request: function() { 
+                return Promise.resolve({ data: null, error: { message: "Nhost nicht verfügbar" }});
+              }
+            }
+          };
+        };
+      }
+    }
+  </script>
   
   <!-- Application JS -->
   <script src="app.js"></script>

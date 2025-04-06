@@ -357,10 +357,6 @@ button:active {
   color: white;
 }
 
-.student-name {
-  font-weight: 500;
-}
-
 .student-actions {
   display: none;
 }
@@ -669,12 +665,8 @@ table {
 }
 
 @keyframes rotation {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .teacher-info {
@@ -773,6 +765,7 @@ table {
   margin-bottom: 20px;
 }
 
+/* Responsive Anpassungen */
 @media (max-width: 1024px) and (min-width: 768px) {
   .container {
     max-width: 95%;
@@ -801,48 +794,4 @@ table {
     font-size: 1.1rem;
     min-height: 48px;
   }
-}
-
-/* Neue CSS-Regeln für das Informationstext-Feld */
-.info-text-container {
-  margin-bottom: 20px;
-  background-color: #f9f9f9;
-  padding: 15px;
-  border-radius: 12px;
-}
-
-.info-text-container h3 {
-  color: var(--primary-color);
-  margin-top: 0;
-  margin-bottom: 10px;
-}
-
-#studentInfoText {
-  width: 100%;
-  padding: 10px;
-  min-height: 120px; /* ca. 6 Zeilen */
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-family: 'Roboto', sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: vertical;
-  transition: var(--transition);
-}
-
-#studentInfoText:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
-}
-
-/* Animation für Autosave */
-@keyframes saveFlash {
-  0% { background-color: rgba(76, 175, 80, 0); }
-  50% { background-color: rgba(76, 175, 80, 0.2); }
-  100% { background-color: rgba(76, 175, 80, 0); }
-}
-
-.save-flash {
-  animation: saveFlash 1s ease;
 }
