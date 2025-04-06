@@ -107,7 +107,6 @@ function showNotification(message, type = "success") {
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
   notification.textContent = message;
-  
   document.body.appendChild(notification);
   setTimeout(() => {
     notification.remove();
@@ -197,7 +196,7 @@ async function initDatabase() {
       });
       if (error) {
         console.error("Fehler beim Überprüfen der Tabelle:", error);
-        showNotification("Bitte stellen Sie sicher, dass die Datenbanktabelle existiert.", "warning");
+        showNotification("Die Tabelle 'wbs_data' wurde nicht gefunden. Bitte führen Sie das SQL-Skript aus.", "warning");
       }
     } catch (err) {
       console.error("Fehler bei GraphQL-Abfrage:", err);
@@ -390,7 +389,6 @@ function setupEventListeners() {
   if (logoutBtn) {
     logoutBtn.addEventListener("click", logout);
   }
-  
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
       const tabId = tab.dataset.tab;
@@ -414,15 +412,12 @@ function setupEventListeners() {
       }
     });
   });
-  
   if (addStudentBtn) {
     addStudentBtn.addEventListener("click", addNewStudent);
   }
-  
   if (assessmentDateSelect) {
     assessmentDateSelect.addEventListener("change", updateAssessmentStudentList);
   }
-  
   if (overviewYearSelect) {
     overviewYearSelect.addEventListener("change", () => {
       populateOverviewDateSelect();
@@ -432,7 +427,6 @@ function setupEventListeners() {
   if (overviewDateSelect) {
     overviewDateSelect.addEventListener("change", updateOverviewContent);
   }
-  
   if (settingsYearSelect) {
     settingsYearSelect.addEventListener("change", populateSettingsDateSelect);
   }
@@ -442,7 +436,6 @@ function setupEventListeners() {
   if (deleteDataBtn) {
     deleteDataBtn.addEventListener("click", confirmDeleteAllData);
   }
-  
   if (closeEditStudentModal) {
     closeEditStudentModal.addEventListener("click", () => {
       editStudentModal.style.display = "none";
@@ -454,7 +447,6 @@ function setupEventListeners() {
   if (deleteStudentBtn) {
     deleteStudentBtn.addEventListener("click", showDeleteConfirmation);
   }
-  
   if (closeEditGradeModal) {
     closeEditGradeModal.addEventListener("click", () => {
       editGradeModal.style.display = "none";
@@ -463,7 +455,6 @@ function setupEventListeners() {
   if (saveGradeBtn) {
     saveGradeBtn.addEventListener("click", saveEditedGrade);
   }
-  
   if (closeConfirmDeleteModal) {
     closeConfirmDeleteModal.addEventListener("click", () => {
       confirmDeleteModal.style.display = "none";
@@ -484,11 +475,7 @@ function showPasswordModal(teacher) {
   passwordInput.value = "";
   passwordModal.style.display = "flex";
   passwordInput.focus();
-  currentUser = {
-    name: teacher.name,
-    code: teacher.code,
-    password: teacher.password
-  };
+  currentUser = { name: teacher.name, code: teacher.code, password: teacher.password };
 }
 
 async function login() {
@@ -592,7 +579,6 @@ async function addNewStudent() {
   });
   teacherData.assessments[newStudent.id].infoText = '';
   teacherData.assessments[newStudent.id].finalGrade = 2.0;
-  
   const saved = await saveTeacherData();
   if (saved) {
     newStudentName.value = "";
@@ -753,21 +739,17 @@ function showAssessmentForm(student) {
   const avgGrade = calculateAverageGrade(assessment);
   const finalGrade = assessment.finalGrade || avgGrade || '-';
   const infoText = assessment.infoText || '';
-  
   let html = `
     <div class="assessment-container">
       <div class="student-header">
         <h2>${student.name}</h2>
         <p>Prüfungsdatum: ${formatDate(student.examDate)}</p>
       </div>
-      
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
         <textarea id="studentInfoText" rows="6" placeholder="Notizen zum Prüfling eingeben...">${infoText}</textarea>
       </div>
-      
       <div class="final-grade-display">Ø ${avgGrade || '0.0'}</div>
-      
       <div class="final-grade-input">
         <label for="finalGrade">Endnote:</label>
         <input type="number" id="finalGrade" min="1" max="6" step="0.1" value="${finalGrade !== '-' ? finalGrade : ''}">
@@ -775,7 +757,6 @@ function showAssessmentForm(student) {
         <button id="useAverageBtn">Durchschnitt übernehmen</button>
       </div>
   `;
-  
   ASSESSMENT_CATEGORIES.forEach(category => {
     const grade = assessment[category.id] || 0;
     html += `
@@ -795,10 +776,8 @@ function showAssessmentForm(student) {
       </div>
     `;
   });
-  
   html += `</div>`;
   assessmentContent.innerHTML = html;
-  
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
     btn.addEventListener("click", async () => {
       const category = btn.parentElement.dataset.category;
@@ -822,7 +801,6 @@ function showAssessmentForm(student) {
       updateAssessmentStudentList();
     });
   });
-  
   const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
   if (saveFinalGradeBtn) {
     saveFinalGradeBtn.addEventListener("click", async () => {
@@ -838,7 +816,6 @@ function showAssessmentForm(student) {
       showNotification("Endnote wurde gespeichert.");
     });
   }
-  
   const useAverageBtn = document.getElementById("useAverageBtn");
   if (useAverageBtn) {
     useAverageBtn.addEventListener("click", async () => {
@@ -854,7 +831,6 @@ function showAssessmentForm(student) {
       showNotification("Durchschnitt als Endnote übernommen.");
     });
   }
-  
   const infoTextArea = document.getElementById("studentInfoText");
   if (infoTextArea) {
     infoTextArea.dataset.changed = "false";

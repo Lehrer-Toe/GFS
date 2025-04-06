@@ -12,19 +12,17 @@
     <span class="loader"></span>
   </div>
 
+  <!-- Login-Bereich -->
   <div id="loginSection">
     <header>
       <h1>WBS Bewertungssystem</h1>
       <div class="version">v1.2</div>
     </header>
-    
     <div class="container animate-fade-in">
       <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
-      
       <div class="teacher-grid" id="teacherGrid">
-        <!-- Teacher Cards werden hier generiert -->
+        <!-- Teacher-Cards werden hier generiert -->
       </div>
-      
       <div class="modal" id="passwordModal">
         <div class="modal-content">
           <div class="modal-header">
@@ -41,7 +39,8 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- App-Bereich -->
   <div id="appSection" style="display: none;">
     <header>
       <div class="teacher-info">
@@ -51,7 +50,6 @@
       <h1>WBS Bewertungssystem</h1>
       <button id="logoutBtn" class="logout-btn">Abmelden</button>
     </header>
-    
     <div class="container">
       <div class="tabs">
         <div class="tab active" data-tab="students">Schüler anlegen</div>
@@ -77,7 +75,6 @@
               <button id="addStudentBtn">Prüfling hinzufügen</button>
             </div>
           </div>
-          
           <div class="content-area">
             <h2>Alle Prüflinge</h2>
             <div class="table-container">
@@ -113,7 +110,6 @@
                 </select>
               </div>
             </div>
-            
             <div class="section">
               <h3>Prüflinge</h3>
               <ul class="student-list" id="assessmentStudentList">
@@ -121,7 +117,6 @@
               </ul>
             </div>
           </div>
-          
           <div class="content-area" id="assessmentContent">
             <div class="welcome-card">
               <h2>Willkommen bei der WBS Bewertungsapp</h2>
@@ -134,7 +129,6 @@
       <!-- Übersicht -->
       <div class="tab-content" id="overview-tab">
         <h2>Übersicht aller Bewertungen</h2>
-        
         <div class="selectors">
           <div class="selector-group">
             <label for="overviewYearSelect">Prüfungsjahr</label>
@@ -142,7 +136,6 @@
               <option value="">Alle Jahre</option>
             </select>
           </div>
-          
           <div class="selector-group">
             <label for="overviewDateSelect">Prüfungstag</label>
             <select id="overviewDateSelect">
@@ -150,7 +143,6 @@
             </select>
           </div>
         </div>
-        
         <div class="table-container">
           <table class="overview-table" id="overviewTable">
             <thead>
@@ -181,7 +173,6 @@
       <!-- Einstellungen -->
       <div class="tab-content" id="settings-tab">
         <h2>Einstellungen</h2>
-        
         <div class="selectors">
           <div class="selector-group">
             <label for="settingsYearSelect">Prüfungsjahr</label>
@@ -189,7 +180,6 @@
               <option value="">Alle Jahre</option>
             </select>
           </div>
-          
           <div class="selector-group">
             <label for="settingsDateSelect">Prüfungstag</label>
             <select id="settingsDateSelect">
@@ -197,7 +187,6 @@
             </select>
           </div>
         </div>
-        
         <div class="card">
           <h3>Ergebnisse exportieren</h3>
           <p>Exportieren Sie die Bewertungen für den ausgewählten Zeitraum.</p>
@@ -213,7 +202,6 @@
             </label>
           </div>
         </div>
-        
         <div class="card">
           <h3>Daten löschen</h3>
           <p>Achtung: Diese Aktion kann nicht rückgängig gemacht werden.</p>
@@ -247,7 +235,6 @@
         </div>
       </div>
     </div>
-    
     <div class="modal" id="editGradeModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -265,7 +252,6 @@
         </div>
       </div>
     </div>
-    
     <div class="modal" id="confirmDeleteModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -305,7 +291,6 @@
       }
     }
   </script>
-  
   <!-- Application JS -->
   <script src="app.js"></script>
 </body>

@@ -305,12 +305,10 @@ button:active {
   .main-layout {
     flex-direction: row;
   }
-  
   .sidebar {
     width: 300px;
     flex-shrink: 0;
   }
-  
   .content-area {
     flex-grow: 1;
   }
@@ -770,25 +768,20 @@ table {
     max-width: 95%;
     padding: 1.5rem;
   }
-  
   .main-layout {
     flex-direction: column;
   }
-  
   .sidebar {
     width: 100%;
   }
-  
   .assessment-category {
     padding: 12px;
   }
-  
   .grade-button {
     width: 48px;
     height: 48px;
     font-size: 1.1rem;
   }
-  
   input, button, select {
     font-size: 1.1rem;
     min-height: 48px;
