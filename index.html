@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>WBS Bewertungssystem</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <!-- Falls styles.css unverändert blieb, hier weglassen oder eingebunden lassen -->
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="loader-container" id="mainLoader">
+  <div class="loader-container" id="mainLoader" style="display: none;">
     <span class="loader"></span>
   </div>
 
@@ -18,12 +18,13 @@
       <h1>WBS Bewertungssystem</h1>
       <div class="version">v1.2</div>
     </header>
-    <div class="container animate-fade-in">
+    <div class="container">
       <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
       <div class="teacher-grid" id="teacherGrid">
-        <!-- Teacher-Cards werden hier generiert -->
+        <!-- Teacher Cards werden hier dynamisch generiert -->
       </div>
-      <div class="modal" id="passwordModal">
+      <!-- Passwort-Abfrage -->
+      <div class="modal" id="passwordModal" style="display: none;">
         <div class="modal-content">
           <div class="modal-header">
             <h3>Anmeldung</h3>
@@ -50,15 +51,17 @@
       <h1>WBS Bewertungssystem</h1>
       <button id="logoutBtn" class="logout-btn">Abmelden</button>
     </header>
+
     <div class="container">
+      <!-- Tabs -->
       <div class="tabs">
         <div class="tab active" data-tab="students">Schüler anlegen</div>
         <div class="tab" data-tab="assessment">Bewertung</div>
         <div class="tab" data-tab="overview">Übersicht</div>
         <div class="tab" data-tab="settings">Einstellungen</div>
       </div>
-      
-      <!-- Schüler anlegen -->
+
+      <!-- Schüler-Tab -->
       <div class="tab-content active" id="students-tab">
         <div class="main-layout">
           <div class="sidebar">
@@ -96,8 +99,8 @@
           </div>
         </div>
       </div>
-      
-      <!-- Bewertung -->
+
+      <!-- Bewertungs-Tab -->
       <div class="tab-content" id="assessment-tab">
         <div class="main-layout">
           <div class="sidebar">
@@ -125,8 +128,8 @@
           </div>
         </div>
       </div>
-      
-      <!-- Übersicht -->
+
+      <!-- Übersichts-Tab -->
       <div class="tab-content" id="overview-tab">
         <h2>Übersicht aller Bewertungen</h2>
         <div class="selectors">
@@ -169,8 +172,8 @@
           </table>
         </div>
       </div>
-      
-      <!-- Einstellungen -->
+
+      <!-- Einstellungen-Tab -->
       <div class="tab-content" id="settings-tab">
         <h2>Einstellungen</h2>
         <div class="selectors">
@@ -213,9 +216,9 @@
         </div>
       </div>
     </div>
-    
+
     <!-- Modals -->
-    <div class="modal" id="editStudentModal">
+    <div class="modal" id="editStudentModal" style="display: none;">
       <div class="modal-content">
         <div class="modal-header">
           <h3>Prüfling bearbeiten</h3>
@@ -235,7 +238,8 @@
         </div>
       </div>
     </div>
-    <div class="modal" id="editGradeModal">
+
+    <div class="modal" id="editGradeModal" style="display: none;">
       <div class="modal-content">
         <div class="modal-header">
           <h3>Note bearbeiten</h3>
@@ -252,7 +256,8 @@
         </div>
       </div>
     </div>
-    <div class="modal" id="confirmDeleteModal">
+
+    <div class="modal" id="confirmDeleteModal" style="display: none;">
       <div class="modal-content">
         <div class="modal-header">
           <h3>Prüfling löschen</h3>
@@ -268,30 +273,10 @@
     </div>
   </div>
 
-  <!-- Nhost-Bibliothek -->
-  <script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js@1.13.0/dist/nhost-js.min.js"></script>
-  <!-- Kompatibilitätslayer für Nhost -->
-  <script>
-    if (typeof NhostClient === 'undefined') {
-      if (typeof nhost !== 'undefined') {
-        window.NhostClient = nhost.NhostClient || function(config) {
-          return nhost.createClient(config);
-        };
-      } else {
-        console.error("Nhost-Bibliothek konnte nicht geladen werden!");
-        window.NhostClient = function() {
-          return {
-            graphql: {
-              request: function() { 
-                return Promise.resolve({ data: null, error: { message: "Nhost nicht verfügbar" }});
-              }
-            }
-          };
-        };
-      }
-    }
-  </script>
-  <!-- Application JS -->
+  <!-- Nhost-Bibliothek direkt über CDN laden -->
+  <script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js@1.13.0/dist/index.umd.js"></script>
+
+  <!-- Haupt-JavaScript -->
   <script src="app.js"></script>
 </body>
 </html>
