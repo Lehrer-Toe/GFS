@@ -97,21 +97,18 @@ async function init() {
   if (examDate) {
     examDate.value = defaultDate;
   }
-  
   await initDatabase();
   initTeacherGrid();
   setupEventListeners();
   hideLoader();
 }
 
-// Anzeige von Benachrichtigungen
 function showNotification(message, type = "success") {
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
   notification.textContent = message;
   
   document.body.appendChild(notification);
-  
   setTimeout(() => {
     notification.remove();
   }, 3000);
@@ -170,7 +167,6 @@ function isStudentOnExamDay(studentId, examDate) {
   return teacherData.students.some(s => s.id !== studentId && s.examDate === examDate);
 }
 
-// Initialisierung der Nhost-Datenbank
 async function initDatabase() {
   try {
     showLoader();
@@ -295,10 +291,8 @@ async function saveTeacherData() {
         }
       `
     });
-    
     let mutation;
     let variables = {};
-    
     if (existingData && existingData.wbs_data && existingData.wbs_data.length > 0) {
       mutation = `
         mutation UpdateTeacherData($teacherCode: String!, $data: jsonb!, $updatedAt: timestamptz!) {
@@ -338,12 +332,10 @@ async function saveTeacherData() {
         data: teacherData
       };
     }
-    
     const { error } = await nhostClient.graphql.request({
       query: mutation,
       variables: variables
     });
-    
     if (error) {
       console.error("Error saving teacher data:", error);
       showNotification("Fehler beim Speichern der Daten.", "error");

@@ -765,7 +765,6 @@ table {
   margin-bottom: 20px;
 }
 
-/* Responsive Anpassungen */
 @media (max-width: 1024px) and (min-width: 768px) {
   .container {
     max-width: 95%;
